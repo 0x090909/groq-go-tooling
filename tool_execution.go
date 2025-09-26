@@ -17,11 +17,13 @@ func (g *GroqGenerator) GenerateWithRegistryExecution(systemPrompt string, userM
 	tools := registry.GetLangChainTools()
 
 	//manage iterations & Execute all tool calls
-	var toolResults []string
+	var responses []string
 	executed_iterations := 0
 	MAX_ITERATIONS := 10
 	returned_tool_calls := math.MaxInt
 	for executed_iterations < MAX_ITERATIONS && returned_tool_calls > 0 {
+		var toolResults []string
+
 		// Generate with tools
 		response, err := g.GenerateWithToolsNoExecution(systemPrompt, userMessage, tools, options...)
 		if err != nil {
@@ -63,13 +65,20 @@ func (g *GroqGenerator) GenerateWithRegistryExecution(systemPrompt string, userM
 		}
 
 		executed_iterations++
+		// Create a follow-up prompt with tool results
+		followUpPrompt := fmt.Sprintf("Based on the following tool results, please provide a comprehensive answer to the user's question:\n\n%s\n\nOriginal question: %s",
+			strings.Join(toolResults, "\n"), userMessage)
+
+		// Generate final response
+		responses = append(responses, g.GenerateWithOptions(systemPrompt, followUpPrompt, options...))
 	}
 
 	// Create a follow-up prompt with tool results
-	followUpPrompt := fmt.Sprintf("Based on the following tool results, please provide a comprehensive answer to the user's question:\n\n%s\n\nOriginal question: %s",
-		strings.Join(toolResults, "\n"), userMessage)
+	followUpPrompt := fmt.Sprintf("Based on the following conversation and results, please provide a comprehensive answer to the user's question:\n\n%s\n\nOriginal question: %s",
+		strings.Join(responses, "\n"), userMessage)
 
 	// Generate final response
 	finalResponse := g.GenerateWithOptions(systemPrompt, followUpPrompt, options...)
+
 	return finalResponse, nil
 }
